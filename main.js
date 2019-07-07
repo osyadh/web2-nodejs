@@ -38,7 +38,7 @@ var app = http.createServer(function(request, response) {
   if (pathname === "/") {
     if (queryData.id === undefined) {
       fs.readdir("./data", (err, filelist) => {
-        console.log(err);
+        // console.log(err);
         var title = "Welcome";
         var description = "Hello, Node.js";
         var temList = templateList(filelist);
@@ -48,10 +48,10 @@ var app = http.createServer(function(request, response) {
       });
     } else {
       fs.readdir("./data", (err, filelist) => {
-        console.log(err);
+        // console.log(err);
         temList = templateList(filelist);
         fs.readFile(`data/${queryData.id}`, "utf8", function(err, description) {
-          console.log(err);
+          // console.log(err);
           var title = queryData.id;
           template = templateHTML(title, temList, description);
           response.writeHead(200);
