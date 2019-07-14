@@ -4,13 +4,25 @@ const bodyParser = require("body-parser");
 const compression = require("compression");
 const fs = require("fs");
 const helmet = require("helmet");
+const session = require("express-session");
+const FileStore = require("session-file-store")(session);
 const indexRouter = require("./routes/index");
 const topicRouter = require("./routes/topic");
+const authRouter = require("./routes/auth");
 
 app.use(helmet());
 app.use(express.static("public"));
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(compression());
+app.use(
+  session({
+    secret: "assdalkfjsdlkf#$%#$%#$",
+    resave: false,
+    saveUninitialized: true,
+    store: new FileStore()
+  })
+);
+
 app.get("*", (req, res, next) => {
   fs.readdir("./topic", (err, filelist) => {
     req.list = filelist;
@@ -20,6 +32,7 @@ app.get("*", (req, res, next) => {
 
 app.use("/", indexRouter);
 app.use("/topic", topicRouter);
+app.use("/auth", authRouter);
 
 app.use((req, res, next) => {
   res.status(404).send("Sorry cant find that!");
