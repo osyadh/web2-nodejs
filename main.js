@@ -1,14 +1,12 @@
 const express = require("express");
 const app = express();
+const fs = require("fs");
 const bodyParser = require("body-parser");
 const compression = require("compression");
-const fs = require("fs");
 const helmet = require("helmet");
 const session = require("express-session");
 const FileStore = require("session-file-store")(session);
-const indexRouter = require("./routes/index");
-const topicRouter = require("./routes/topic");
-const authRouter = require("./routes/auth");
+const flash = require("connect-flash");
 
 app.use(helmet());
 app.use(express.static("public"));
@@ -22,6 +20,8 @@ app.use(
     store: new FileStore()
   })
 );
+app.use(flash());
+const passport = require("./lib/passport")(app);
 
 app.get("*", (req, res, next) => {
   fs.readdir("./topic", (err, filelist) => {
@@ -29,6 +29,10 @@ app.get("*", (req, res, next) => {
     next();
   });
 });
+
+const indexRouter = require("./routes/index");
+const topicRouter = require("./routes/topic");
+const authRouter = require("./routes/auth")(passport);
 
 app.use("/", indexRouter);
 app.use("/topic", topicRouter);
