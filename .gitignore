@@ -87,4 +87,6 @@ typings/
 # DynamoDB Local files
 .dynamodb/
 
-sessions
+sessions/*
+config/facebook.json
+config/google.json

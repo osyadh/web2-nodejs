@@ -5,6 +5,8 @@ const auth = require("../lib/auth");
 const path = require("path");
 const fs = require("fs");
 const sanitizeHtml = require("sanitize-html");
+const db = require("../lib/db");
+const shortid = require("shortid");
 
 router.get("/create", (req, res) => {
   if (!auth.isOwner(req, res)) {
@@ -49,9 +51,22 @@ router.post("/create", (req, res) => {
   const post = req.body;
   const title = post.title;
   const description = post.description;
-  fs.writeFile(`./topic/${title}`, description, "utf8", err => {
-    res.redirect(`/topic/${title}`);
-  });
+  // 파일작성방법
+  // fs.writeFile(`./topic/${title}`, description, "utf8", err => {
+  //   res.redirect(`/topic/${title}`);
+  // });
+
+  // lowdb
+  const sid = shortid.generate();
+  db.get("topics")
+    .push({
+      id: sid,
+      title: title,
+      description: description,
+      user_id: req.user.id
+    })
+    .write();
+  res.redirect(`/topic/${sid}`);
 });
 
 router.get("/update/:pageId", (req, res) => {
@@ -59,26 +74,33 @@ router.get("/update/:pageId", (req, res) => {
     res.redirect("/");
     return false;
   }
-  temList = template.list(req.list);
-  const title = req.params.pageId;
-  const filteredId = path.parse(title).base;
-  fs.readFile(`./topic/${filteredId}`, "utf8", function(err, description) {
-    HTML = template.html(
-      "",
-      temList,
-      `
+  const topic = db
+    .get("topics")
+    .find({ id: req.params.pageId })
+    .value();
+  if (topic.user_id !== req.user.id) {
+    return res.redirect("/");
+  }
+  const title = topic.title;
+  const description = topic.description;
+  const temList = template.list(req.list);
+  const HTML = template.html(
+    "",
+    temList,
+    `
           <form action="/topic/update" method="post">
-          <input type="hidden" name="id" value=${title}>
+          <input type="hidden" name="id" value=${topic.id}>
           <p><input type="text" name="title" value=${title}></p>
           <p><textarea name="description">${description}</textarea></p>
           <p><input type="submit"></p>
           </form>
           `,
-      `<h1><a href="/topic/create">create</a> <a href="/topic/update/${title}">update</a>`,
-      auth.statusUI(req, res)
-    );
-    res.send(HTML);
-  });
+    `<h1><a href="/topic/create">create</a> <a href="/topic/update/${
+      topic.id
+    }">update</a>`,
+    auth.statusUI(req, res)
+  );
+  res.send(HTML);
 });
 
 router.post("/update", (req, res) => {
@@ -86,11 +108,24 @@ router.post("/update", (req, res) => {
   const id = post.id;
   const title = post.title;
   const description = post.description;
-  fs.rename(`./topic/${id}`, `./topic/${title}`, err => {
-    fs.writeFile(`./topic/${title}`, description, "utf8", err => {
-      res.redirect(`/topic/${title}`);
-    });
-  });
+  const topic = db
+    .get("topics")
+    .find({ id: id })
+    .value();
+  // console.log(topic);
+  db.get("topics")
+    .find({ id: id })
+    .assign({
+      title: title,
+      description: description
+    })
+    .write();
+  res.redirect(`topic/${topic.id}`);
+  // fs.rename(`./topic/${id}`, `./topic/${title}`, err => {
+  //   fs.writeFile(`./topic/${title}`, description, "utf8", err => {
+  //     res.redirect(`/topic/${title}`);
+  //   });
+  // });
 });
 
 router.post("/delete", (req, res) => {
@@ -100,39 +135,52 @@ router.post("/delete", (req, res) => {
   }
   const post = req.body;
   const id = post.id;
-  const filteredId = path.parse(id).base;
-  fs.unlink(`./topic/${filteredId}`, err => {
-    res.redirect("/");
-  });
+  const topic = db
+    .get("topics")
+    .find({ id: id })
+    .value();
+  if (topic.user_id !== req.user.id) {
+    return res.redirect("/");
+  }
+  db.get("topics")
+    .remove({ id: id })
+    .write();
+  return res.redirect("/");
+
+  // fs.unlink(`./topic/${filteredId}`, err => {
+  //   res.redirect("/");
+  // });
 });
 
 router.get("/:pageId/", (req, res, next) => {
+  const topic = db
+    .get("topics")
+    .find({ id: req.params.pageId })
+    .value();
+  const user = db
+    .get("users")
+    .find({ id: topic.user_id })
+    .value();
   temList = template.list(req.list);
-  const title = req.params.pageId;
-  const filteredId = path.parse(title).base;
-  fs.readFile(`./topic/${filteredId}`, "utf8", function(err, description) {
-    if (!err) {
-      const sanitizedTitle = sanitizeHtml(title);
-      const sanitizedDescription = sanitizeHtml(description, {
-        allowedTags: ["h1"]
-      });
-      HTML = template.html(
-        sanitizedTitle,
-        temList,
-        sanitizedDescription,
-        `<h1><a href="/topic/create">create</a> 
-             <a href="/topic/update/${sanitizedTitle}">update</a> 
-             <form action="/topic/delete" method="post">
-              <input type="hidden" name="id" value=${sanitizedTitle}>
-              <input type="submit" value="delete">
-             </form>`,
-        auth.statusUI(req, res)
-      );
-      res.send(HTML);
-    } else {
-      next(err);
-    }
+  const sanitizedTitle = sanitizeHtml(topic.title);
+  const sanitizedDescription = sanitizeHtml(topic.description, {
+    allowedTags: ["h1"]
   });
+  HTML = template.html(
+    sanitizedTitle,
+    temList,
+    sanitizedDescription,
+    `<h1><a href="/topic/create">create</a> 
+             <a href="/topic/update/${topic.id}">update</a> 
+             <form action="/topic/delete" method="post">
+              <input type="hidden" name="id" value=${topic.id}>
+              <input type="submit" value="delete">
+             </form>
+             <p>By ${user.displayName}</p>
+             `,
+    auth.statusUI(req, res)
+  );
+  res.send(HTML);
 });
 
 module.exports = router;

@@ -7,6 +7,7 @@ const helmet = require("helmet");
 const session = require("express-session");
 const FileStore = require("session-file-store")(session);
 const flash = require("connect-flash");
+const db = require("./lib/db");
 
 app.use(helmet());
 app.use(express.static("public"));
@@ -24,10 +25,8 @@ app.use(flash());
 const passport = require("./lib/passport")(app);
 
 app.get("*", (req, res, next) => {
-  fs.readdir("./topic", (err, filelist) => {
-    req.list = filelist;
-    next();
-  });
+  req.list = db.get("topics").value();
+  next();
 });
 
 const indexRouter = require("./routes/index");
